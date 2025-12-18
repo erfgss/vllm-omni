@@ -174,6 +174,10 @@ We can see the debug log（vllm+omni+diffusion）in omni_llm_pipeline.log:
 2025-12-16 01:24:44,915 [PID:17815] DEBUG: [Orchestrator] All requests completed
 2025-12-16 01:24:44,915 [PID:17815] INFO: [Summary] {'e2e_requests': 1, 'e2e_total_time_ms': 21893.684148788452, 'e2e_sum_time_ms': 21892.935752868652, 'e2e_total_tokens': 0, 'e2e_avg_time_per_request_ms': 21892.935752868652, 'e2e_avg_tokens_per_s': 0.0, 'wall_time_ms': 21893.684148788452, 'final_stage_id': 2, 'stages': [{'stage_id': 0, 'requests': 1, 'tokens': 52, 'total_time_ms': 3505.100727081299, 'avg_time_per_request_ms': 3505.100727081299, 'avg_tokens_per_s': 14.835522299897058}, {'stage_id': 1, 'requests': 1, 'tokens': 170, 'total_time_ms': 18008.86106491089, 'avg_time_per_request_ms': 18008.86106491089, 'avg_tokens_per_s': 9.43979740791238}, {'stage_id': 2, 'requests': 1, 'tokens': 0, 'total_time_ms': 124.7246265411377, 'avg_time_per_request_ms': 124.7246265411377, 'avg_tokens_per_s': 0.0}], 'transfers': [{'from_stage': 0, 'to_stage': 1, 'samples': 1, 'total_bytes': 3148794, 'total_time_ms': 5.67626953125, 'tx_mbps': 4437.835776, 'rx_samples': 1, 'rx_total_bytes': 3148794, 'rx_total_time_ms': 5.737543106079102, 'rx_mbps': 4390.442308539705, 'total_samples': 1, 'total_transfer_time_ms': 12.53652572631836, 'total_mbps': 2009.3567029593396}, {'from_stage': 1, 'to_stage': 2, 'samples': 1, 'total_bytes': 8393, 'total_time_ms': 0.35572052001953125, 'tx_mbps': 188.7549247828418, 'rx_samples': 1, 'rx_total_bytes': 8393, 'rx_total_time_ms': 0.43487548828125, 'rx_mbps': 154.39821698245615, 'total_samples': 1, 'total_transfer_time_ms': 1.3141632080078125, 'total_mbps': 51.092588493468796}]}
 
+```
 
+## If you do not need to print the vLLM features, you can run the script directly, or unset VLLM_LOGGING_LEVEL. 
+```bash
+unset VLLM_LOGGING_LEVEL
 ```
 

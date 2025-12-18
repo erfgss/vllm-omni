@@ -29,7 +29,7 @@ export VLLM_LOGGING_LEVEL=DEBUG
         --num_inference_steps 50 \
         --cfg_scale 4.0
 ```
-We can see the vLLM logs in the console and the diffusion logs in omni_diffusion.stats.jsonl.
+We can see the vLLM logs in the console and the diffusion logs in path/omni_diffusion_stats/omni_diffusion_%Y%m%d_%H%M%S_xx_pidxxxxW.jsonl.
 
 ```json
 INFO 12-17 09:28:58 [__init__.py:216] Automatically detected platform cuda.
@@ -53,14 +53,11 @@ INFO 12-17 09:31:17 [gpu_worker.py:114] Worker 0: Destroyed process group
 INFO 12-17 09:31:17 [gpu_worker.py:245] Worker 0: Shutdown complete.
 ```
 ---
-## omni_diffusion.stats.json
+## omni_diffusion_%Y%m%d_%H%M%S_xx_pidxxxxW.jsonl
 ```json
-{"model": "path/models/Qwen-Image-Edit", "model_class": "QwenImageEditPipeline", "init_ms": 37476.57305300527, "event": "init", "ts": 1765867640.7366118, "pid": 30821, "host": "huawei"}
-{"n_requests": 1, "prompt_chars": 103, "height": null, "width": null, "num_inference_steps": 50, "event": "generate_begin", "ts": 1765867640.7371962, "pid": 30821, "host": "huawei"}
-{"n_requests": 1, "total_ms": 111311.67763000121, "diffusion_total_ms": 111311.38319999445, "num_inference_steps": 50, "denoise_avg_ms": 2226.227663999889, "input_tokens": 103, "input_tokens_per_s": 0.9253296886097689, "event": "generate_end", "ts": 1765867752.0488513, "pid": 30821, "host": "huawei"}
-{"model": "path/models/Qwen-Image-Edit", "model_class": "QwenImageEditPipeline", "init_ms": 19186.26650699298, "event": "init", "ts": 1765867821.699614, "pid": 31561, "host": "huawei"}
-{"n_requests": 1, "prompt_chars": 103, "height": null, "width": null, "num_inference_steps": 50, "event": "generate_begin", "ts": 1765867821.700072, "pid": 31561, "host": "huawei"}
-{"n_requests": 1, "total_ms": 111367.34167499526, "diffusion_total_ms": 111367.06203500216, "num_inference_steps": 50, "denoise_avg_ms": 2227.3412407000433, "input_tokens": 103, "input_tokens_per_s": 0.924867186832799, "event": "generate_end", "ts": 1765867933.0673816, "pid": 31561, "host": "huawei"}
+{"model": "path/models/Qwen-Image", "model_class": "QwenImagePipeline", "init_ms": 17562.917941002524, "event": "engine_load", "ts": 1766019712.405319, "pid": 18635, "host": "xxxx"}
+{"n_requests": 1, "prompt_chars": 28, "height": 1024, "width": 1024, "generator": "<torch._C.Generator object at 0x7fc71d96e8f0>", "true_cfg_scale": 4.0, "num_inference_steps": 50, "num_outputs_per_prompt": 1, "event": "request_scheduled", "ts": 1766019712.405916, "pid": 18635, "host": "xxxx"}
+{"n_requests": 1, "total_ms": 42437.41700099781, "diffusion_total_ms": 42437.13191100687, "denoise_avg_ms": 848.7426382201375, "input_tokens": 28, "input_tokens_per_s": 0.6597951048562086, "event": "request_finished", "ts": 1766019754.8433862, "pid": 18635, "host": "xxxx"}
 
 ```
 ### 2.The vllm feature is not printed..

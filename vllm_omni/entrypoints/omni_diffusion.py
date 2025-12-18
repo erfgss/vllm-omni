@@ -1,6 +1,9 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: Copyright contributors to the vLLM project
 
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: Copyright contributors to the vLLM project
+
 import logging
 import time
 import os
@@ -8,6 +11,7 @@ import socket
 import json
 from dataclasses import fields
 from typing import Any
+from datetime import datetime
 
 from vllm.logger import init_logger
 from vllm.transformers_utils.config import get_hf_file_to_dict
@@ -21,22 +25,42 @@ from vllm_omni.entrypoints.stage_utils import append_jsonl
 logging.basicConfig(level=logging.INFO)
 logger = init_logger(__name__)
 
-_STATS_PATH = os.getenv(
-    "OMNI_DIFFUSION_STATS",
-    "omni_diffusion.stats.jsonl",
-)
 
-_PRINT_METRICS = os.getenv("OMNI_DIFFUSION_PRINT", "1") == "1"
+def _make_run_stats_path() -> str:
+    """
+    Create a per-run jsonl path in a fixed directory, named by timestamp.
+    If OMNI_DIFFUSION_STATS is set, use it as an explicit file path.
+    """
+    explicit = os.getenv("OMNI_DIFFUSION_STATS")
+    if explicit:
+        # User explicitly provided a file path -> respect it.
+        parent = os.path.dirname(explicit)
+        if parent:
+            os.makedirs(parent, exist_ok=True)
+        return explicit
+
+    stats_dir = os.getenv("OMNI_DIFFUSION_STATS_DIR", "omni_diffusion_stats")
+    os.makedirs(stats_dir, exist_ok=True)
+
+    # Local time; include milliseconds + pid to avoid collisions
+    now = datetime.now()
+    ts = now.strftime("%Y%m%d_%H%M%S") + f"_{now.microsecond // 1000:03d}"
+    pid = os.getpid()
+
+    filename = f"omni_diffusion_{ts}_pid{pid}.jsonl"
+    return os.path.join(stats_dir, filename)
+
+
+_STATS_PATH = _make_run_stats_path()
+
+_PRINT_DIFFUSION_METRICS = os.getenv("OMNI_DIFFUSION_PRINT", "1") == "1"
+
+
 
 
 def _record(event: str, **kv: Any) -> None:
     """
     Record a structured profiling event to jsonl.
-
-    NOTE:
-    ◦ Only records metrics that are strictly observable
-
-      at the OmniDiffusion boundary.
     """
     kv["event"] = event
     kv["ts"] = time.time()
@@ -48,38 +72,50 @@ def _record(event: str, **kv: Any) -> None:
         logger.error("Failed to write omni diffusion stats: %s", e)
 
 
+def _extract_kwargs_detail(kwargs: dict[str, Any]) -> dict[str, Any]:
+    """
+    Extract and sanitize selected kwargs for logging / jsonl.
+    """
+    keys_of_interest = (
+        "height",
+        "width",
+        "generator",
+        "true_cfg_scale",
+        "num_inference_steps",
+        "num_outputs_per_prompt",
+    )
+
+    out: dict[str, Any] = {}
+    for k in keys_of_interest:
+        if k not in kwargs:
+            continue
+        v = kwargs[k]
+        try:
+            json.dumps(v)
+            out[k] = v
+        except Exception:
+            # torch.Generator / custom objects
+            out[k] = repr(v)
+    return out
+
 
 def prepare_requests(prompt: str | list[str], **kwargs):
     field_names = {f.name for f in fields(OmniDiffusionRequest)}
     init_kwargs = {"prompt": prompt}
-
     for key, value in kwargs.items():
         if key in field_names:
             init_kwargs[key] = value
-
     return OmniDiffusionRequest(**init_kwargs)
-
 
 
 class OmniDiffusion:
     """
     High-level entrypoint for vLLM-Omni diffusion models.
-
-    Design principle:
-    ◦ Do NOT touch pipeline / engine internals
-
-    ◦ Only record metrics observable at this layer
-
-    ◦ All timings are wall-clock based and semantically honest
-
     """
 
     def __init__(self, od_config: OmniDiffusionConfig | None = None, **kwargs):
         t0 = time.perf_counter()
 
-        # --------------------------------------------------------------
-        # config resolution
-        # --------------------------------------------------------------
         if od_config is None:
             od_config = OmniDiffusionConfig.from_kwargs(**kwargs)
         elif isinstance(od_config, dict):
@@ -96,7 +132,7 @@ class OmniDiffusion:
             "model_index.json",
             od_config.model,
         )
-        od_config.model_class_name = model_index.get("_class_name", None)
+        od_config.model_class_name = model_index.get("_class_name")
 
         tf_config_dict = get_hf_file_to_dict(
             "transformer/config.json",
@@ -116,12 +152,11 @@ class OmniDiffusion:
         )
 
         _record(
-            "init",
+            "engine_load",
             model=od_config.model,
             model_class=od_config.model_class_name,
             init_ms=init_ms,
         )
-
 
     def generate(
         self,
@@ -143,24 +178,13 @@ class OmniDiffusion:
             prepare_requests(p, **kwargs) for p in prompts
         ]
 
-        num_steps = kwargs.get(
-            "num_inference_steps",
-            self._default_num_steps,
-        )
-
-        logger.info(
-            "generate_begin: n_requests=%d, kwargs=%s",
-            len(requests),
-            list(kwargs.keys()),
-        )
+        kwargs_detail = _extract_kwargs_detail(kwargs)
 
         _record(
-            "generate_begin",
+            "request_scheduled",
             n_requests=len(requests),
             prompt_chars=prompt_chars,
-            height=kwargs.get("height"),
-            width=kwargs.get("width"),
-            num_inference_steps=num_steps,
+            **kwargs_detail,
         )
 
         t_engine_begin = time.perf_counter()
@@ -169,13 +193,14 @@ class OmniDiffusion:
 
         total_ms = (time.perf_counter() - t_total_begin) * 1000
 
+        num_steps = kwargs_detail.get("num_inference_steps")
         denoise_avg_ms = (
             engine_ms / num_steps
             if num_steps
             else None
         )
 
-        input_tokens = prompt_chars  # approximation (documented)
+        input_tokens = prompt_chars  # approximation
         input_tokens_per_s = (
             input_tokens / (total_ms / 1000)
             if total_ms > 0
@@ -183,12 +208,18 @@ class OmniDiffusion:
         )
 
         logger.info(
-            "generate_end: n_requests=%d, total_ms=%.2f",
+            "request_finished: n_requests=%d, total_ms=%.2f",
             len(requests),
             total_ms,
         )
 
-        if _PRINT_METRICS:
+        if _PRINT_DIFFUSION_METRICS:
+            logger.info(
+            "request_scheduled: n_requests=%d, kwargs_keys=%s, kwargs_detail=%s",
+            len(requests),
+            list(kwargs.keys()),
+            kwargs_detail,
+        )
             logger.info(
                 "OMNI_DIFFUSION_METRICS %s",
                 json.dumps(
@@ -205,13 +236,11 @@ class OmniDiffusion:
                 ),
             )
 
-
         _record(
-            "generate_end",
+            "request_finished",
             n_requests=len(requests),
             total_ms=total_ms,
             diffusion_total_ms=engine_ms,
-            num_inference_steps=num_steps,
             denoise_avg_ms=denoise_avg_ms,
             input_tokens=input_tokens,
             input_tokens_per_s=input_tokens_per_s,

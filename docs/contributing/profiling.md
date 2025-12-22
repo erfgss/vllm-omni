@@ -203,11 +203,15 @@ sh run_multiple_prompts.sh
 2025-12-22 03:44:21,944 [PID:28962] DEBUG: [Orchestrator] Stage-2 completed request 0_6850c39c-0977-479d-8b83-98a582b55e36; forwarding or finalizing
  ```
 #### Analysis of Sample Log Output
-| Stage ID | Tokens Out | Stage Time (ms) | RX Transfer (Bytes) | RX Decode Time (ms) | RX In-Flight Time (ms) | Stage Role             | User Insight                |
-| -------- | ---------- | --------------- | ------------------- | ------------------- | ---------------------- | ---------------------- | --------------------------- |
-| Stage-0  | 62         | 1285.47         | 339                 | 0.02                | 0.00                   | Preprocessing / Encoding | Low latency, minimal IPC cost |
-| Stage-1  | 976        | 17209.78        | 1 779 789           | 2.79                | 1.39                   | Primary compute stage* | Dominant latency contributor|
-| Stage-2  | 0          | 5178.14         | 3572                | 0.38                | 0.68                   | Post-processing / Decoding | Non-token workload visibility |
+Key Takeaways for Users
+
+- Deterministic stage progression: Requests are explicitly forwarded from Stage-0 → Stage-1 → Stage-2.
+
+- Fine-grained latency attribution: stage_gen_time_ms clearly isolates per-stage cost.
+
+- IPC transparency: rx_transfer_bytes and timing metrics quantify inter-stage communication overhead.
+
+- Bottleneck identification: Stage-1 dominates total runtime and is the primary optimization target.
 
 StageMetrics logs provide per-stage latency, token output, and IPC statistics, enabling precise identification of compute-heavy stages and communication overhead in vLLM-Omni’s multi-stage pipeline.
 
@@ -224,3 +228,16 @@ python image_edit.py \
         --cfg_scale 4.0
 
 ```
+
+
+
+#### Examples Log Output
+ ```json
+{"model": "/path/models/Qwen-Image-Edit", "model_class": "QwenImageEditPipeline", "init_ms": 17887.677347000135, "event": "engine_load", "ts": 1765964085.1641278, "pid": 17821, "host": "xxxxx"}
+{"n_requests": 1, "prompt_chars": 103, "generator": "<torch._C.Generator object at 0x7f067bd268d0>", "true_cfg_scale": 4.0, "num_inference_steps": 50, "num_outputs_per_prompt": 1, "event": "request_scheduled", "ts": 1765964085.1646054, "pid": 17821, "host": "xxxxxx"}
+{"n_requests": 1, "total_ms": 111309.74476899974, "diffusion_total_ms": 111309.49567900097, "denoise_avg_ms": 2226.1899135800195, "input_tokens": 103, "input_tokens_per_s": 0.9253457566878364, "event": "request_finished", "ts": 1765964196.474393, "pid": 17821, "host": "xxxxxx"}
+ ```
+
+#### Analysis of Sample Log Output
+
+StageMetrics logs provide per-stage latency, token output, and IPC statistics, enabling precise identification of compute-heavy stages and communication overhead in vLLM-Omni’s multi-stage pipeline.

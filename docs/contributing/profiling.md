@@ -153,10 +153,11 @@ sh run_multiple_prompts.sh
 | IPC / Transfer | Stage-0 → Stage-1                                                                                | High-volume tensor transfer        | Validates high-bandwidth IPC     |
 | Observability | IPC visibility;E2E aggregation                                                                                   | Per-stage time & token breakdown   | Precise bottleneck isolation     |
 
+The Omni summary provides a unified view of end-to-end latency, stage-level compute costs, and inter-stage communication metrics, enabling precise performance diagnosis in multi-stage pipelines.
 
 
 
-### 3.Diffusion features
+### 3.Diffusion feature
 • The Multi-Stage Pipeline logs do not directly record the details of the diffusion algorithm. Instead, they abstract a complete diffusion process into a single Stage, indirectly reflecting the overall performance of diffusion through `stage_gen_time_ms`, and focus on recording IPC and scheduling characteristics across different Stages.
 
 • The Diffusion Pipeline logs comprehensively cover the core macro characteristics of diffusion inference, including model loading, CFG, number of inference steps, total diffusion time, average denoising step time, and other parameters.
@@ -189,6 +190,26 @@ omni_llm = Omni(
 ```bash
 sh run_multiple_prompts.sh
 ```
+#### Examples Log Output
+ ```json
+2025-12-22 03:43:59,499 [PID:28962] INFO: [StageMetrics] stage=0 req=0_6850c39c-0977-479d-8b83-98a582b55e36 metrics={'num_tokens_out': 62, 'stage_gen_time_ms': 1285.4697704315186, 'batch_id': 1, 'rx_decode_time_ms': 0.020742416381835938, 'rx_transfer_bytes': 339, 'rx_in_flight_time_ms': 0.0}
+2025-12-22 03:43:59,499 [PID:28962] DEBUG: [Orchestrator] Stage-0 completed request 0_6850c39c-0977-479d-8b83-98a582b55e36; forwarding or finalizing
+2025-12-22 03:43:59,500 [PID:28962] DEBUG: [Orchestrator] Request 0_6850c39c-0977-479d-8b83-98a582b55e36 finalized at stage-0
+2025-12-22 03:43:59,525 [PID:28962] DEBUG: [Orchestrator] Forwarded request 0_6850c39c-0977-479d-8b83-98a582b55e36 to stage-1
+2025-12-22 03:44:16,752 [PID:28962] INFO: [StageMetrics] stage=1 req=0_6850c39c-0977-479d-8b83-98a582b55e36 metrics={'num_tokens_out': 976, 'stage_gen_time_ms': 17209.781646728516, 'batch_id': 1, 'rx_decode_time_ms': 2.7894973754882812, 'rx_transfer_bytes': 1779789, 'rx_in_flight_time_ms': 1.3875961303710938}
+2025-12-22 03:44:16,753 [PID:28962] DEBUG: [Orchestrator] Stage-1 completed request 0_6850c39c-0977-479d-8b83-98a582b55e36; forwarding or finalizing
+2025-12-22 03:44:16,754 [PID:28962] DEBUG: [Orchestrator] Forwarded request 0_6850c39c-0977-479d-8b83-98a582b55e36 to stage-2
+2025-12-22 03:44:21,943 [PID:28962] INFO: [StageMetrics] stage=2 req=0_6850c39c-0977-479d-8b83-98a582b55e36 metrics={'num_tokens_out': 0, 'stage_gen_time_ms': 5178.144931793213, 'batch_id': 1, 'rx_decode_time_ms': 0.3783702850341797, 'rx_transfer_bytes': 3572, 'rx_in_flight_time_ms': 0.6799697875976562}
+2025-12-22 03:44:21,944 [PID:28962] DEBUG: [Orchestrator] Stage-2 completed request 0_6850c39c-0977-479d-8b83-98a582b55e36; forwarding or finalizing
+ ```
+#### Analysis of Sample Log Output
+| Stage ID | Tokens Out | Stage Time (ms) | RX Transfer (Bytes) | RX Decode Time (ms) | RX In-Flight Time (ms) | Stage Role             | User Insight                |
+| -------- | ---------- | --------------- | ------------------- | ------------------- | ---------------------- | ---------------------- | --------------------------- |
+| Stage-0  | 62         | 1285.47         | 339                 | 0.02                | 0.00                   | Preprocessing / Encoding | Low latency, minimal IPC cost |
+| Stage-1  | 976        | 17209.78        | 1 779 789           | 2.79                | 1.39                   | Primary compute stage* | Dominant latency contributor|
+| Stage-2  | 0          | 5178.14         | 3572                | 0.38                | 0.68                   | Post-processing / Decoding | Non-token workload visibility |
+
+StageMetrics logs provide per-stage latency, token output, and IPC statistics, enabling precise identification of compute-heavy stages and communication overhead in vLLM-Omni’s multi-stage pipeline.
 
 2.The Diffusion Pipeline
 

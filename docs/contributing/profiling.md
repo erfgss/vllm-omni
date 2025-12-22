@@ -74,6 +74,85 @@ During the operation of the Multi-Stage Pipeline model, the Omni feature is auto
 sh run_multiple_prompts.sh
 ```
 #### Examples Log Output
+ ```json
+{
+  "e2e_requests": 1,
+  "e2e_total_time_ms": 23745.417833328247,
+  "e2e_sum_time_ms": 23744.66896057129,
+  "e2e_total_tokens": 0,
+  "e2e_avg_time_per_request_ms": 23744.66896057129,
+  "e2e_avg_tokens_per_s": 0.0,
+  "wall_time_ms": 23745.417833328247,
+  "final_stage_id": 2,
+  "stages": [
+    {
+      "stage_id": 0,
+      "requests": 1,
+      "tokens": 62,
+      "total_time_ms": 1299.1509437561035,
+      "avg_time_per_request_ms": 1299.1509437561035,
+      "avg_tokens_per_s": 47.72347685846702
+    },
+    {
+      "stage_id": 1,
+      "requests": 1,
+      "tokens": 976,
+      "total_time_ms": 17227.604389190674,
+      "avg_time_per_request_ms": 17227.604389190674,
+      "avg_tokens_per_s": 56.6532628652875
+    },
+    {
+      "stage_id": 2,
+      "requests": 1,
+      "tokens": 0,
+      "total_time_ms": 5190.91010093689,
+      "avg_time_per_request_ms": 5190.91010093689,
+      "avg_tokens_per_s": 0.0
+    }
+  ],
+  "transfers": [
+    {
+      "from_stage": 0,
+      "to_stage": 1,
+      "samples": 1,
+      "total_bytes": 1779789,
+      "total_time_ms": 3.548145294189453,
+      "tx_mbps": 4012.888655748421,
+      "rx_samples": 1,
+      "rx_total_bytes": 1779789,
+      "rx_total_time_ms": 2.7894973754882812,
+      "rx_mbps": 5104.257177337436,
+      "total_samples": 1,
+      "total_transfer_time_ms": 7.725238800048828,
+      "total_mbps": 1843.0902097045862
+    },
+    {
+      "from_stage": 1,
+      "to_stage": 2,
+      "samples": 1,
+      "total_bytes": 3572,
+      "total_time_ms": 0.42510032653808594,
+      "tx_mbps": 67.22177852159282,
+      "rx_samples": 1,
+      "rx_total_bytes": 3572,
+      "rx_total_time_ms": 0.3783702850341797,
+      "rx_mbps": 75.52390113673599,
+      "total_samples": 1,
+      "total_transfer_time_ms": 1.4834403991699219,
+      "total_mbps": 19.26332868916747
+    }
+  ]
+}
+
+ ```
+
+#### Analysis of Sample Log Output
+| Category    | Metric / Component                                                                               | What It Represents                 | User Value                       |
+| ----------- |--------------------------------------------------------------------------------------------------|------------------------------------| -------------------------------- |
+| End-to-End  | `e2e_requests`;`e2e_total_time_ms`;`e2e_avg_time_per_request_ms`;`wall_time_ms`;`final_stage_id` | Total completed requests(latency;Wall-clock runtime) | Confirms full pipeline execution |
+| IPC / Transfer | Stage-0 → Stage-1                                                                                | High-volume tensor transfer        | Validates high-bandwidth IPC     |
+| Observability | IPC visibility;E2E aggregation                                                                                   | Per-stage time & token breakdown   | Precise bottleneck isolation     |
+
 
 
 

@@ -256,6 +256,7 @@ def enable_cache_for_longcat_image(pipeline: Any, cache_config: Any) -> Callable
 
     return refresh_cache_context
 
+
 def enable_cache_for_flux(pipeline: Any, cache_config: Any) -> Callable[[int], None]:
     """Enable cache-dit for Flux dual-transformer architecture.
 
@@ -269,6 +270,9 @@ def enable_cache_for_flux(pipeline: Any, cache_config: Any) -> Callable[[int], N
     Returns:
         A refresh function that can be called to update cache context with new num_inference_steps.
     """
+    raise NotImplementedError("cache-dit is not implemented for Flux pipeline.")
+
+def enable_cache_for_ultraflux(pipeline: Any, cache_config: Any) -> Callable[[int], None]:
     db_cache_config = _build_db_cache_config(cache_config)
 
     calibrator = None
@@ -449,7 +453,7 @@ CUSTOM_DIT_ENABLERS.update(
     {
         "WanPipeline": enable_cache_for_wan22,
         "FluxPipeline": enable_cache_for_flux,
-        "UltraFluxPipeline": enable_cache_for_flux,
+        "UltraFluxPipeline": enable_cache_for_ultraflux,
         "LongcatImagePipeline": enable_cache_for_longcat_image,
         "LongcatImageEditPipeline": enable_cache_for_longcat_image,
         "StableDiffusion3Pipeline": enable_cache_for_sd3,

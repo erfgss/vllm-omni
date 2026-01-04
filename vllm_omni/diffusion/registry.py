@@ -44,6 +44,11 @@ _DIFFUSION_MODELS = {
         "pipeline_wan2_2",
         "Wan22Pipeline",
     ),
+    "WanImageToVideoPipeline": (
+        "wan2_2",
+        "pipeline_wan2_2_i2v",
+        "Wan22I2VPipeline",
+    ),
     "LongCatImagePipeline": (
         "longcat_image",
         "pipeline_longcat_image",

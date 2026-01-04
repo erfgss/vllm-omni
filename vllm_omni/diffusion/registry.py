@@ -89,8 +89,6 @@ def initialize_model(
     od_config: OmniDiffusionConfig,
 ):
     model_class = DiffusionModelRegistry._try_load_model_cls(od_config.model_class_name)
-    print("DEBUG model_class =", model_class)
-    print("DEBUG model_class_name =", od_config.model_class_name)
     if model_class is not None:
         model = model_class(od_config=od_config)
         # Configure VAE memory optimization settings from config

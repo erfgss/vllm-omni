@@ -4,7 +4,7 @@
 import multiprocessing as mp
 import time
 import weakref
-from collections.abc import Callable, Iterable
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
@@ -73,14 +73,18 @@ class DiffusionEngine:
 
     def step(self, requests: list[OmniDiffusionRequest]):
         try:
+            preprocess_ms = 0.0
             # Apply pre-processing if available
             if self.pre_process_func is not None:
                 preprocess_start_time = time.time()
                 requests = self.pre_process_func(requests)
                 preprocess_time = time.time() - preprocess_start_time
+                preprocess_ms = preprocess_time * 1000.0
                 logger.info(f"Pre-processing completed in {preprocess_time:.4f} seconds")
 
+            infer_start_time = time.time()
             output = self.add_req_and_wait_for_response(requests)
+            infer_ms = (time.time() - infer_start_time) * 1000.0
             if output.error:
                 raise Exception(f"{output.error}")
             logger.info("Generation completed successfully.")
@@ -98,14 +102,22 @@ class DiffusionEngine:
                         request_id=request_id,
                         images=[],
                         prompt=prompt,
-                        metrics={},
+                        metrics={
+                            "preprocess_time_ms": preprocess_ms,
+                            "dit_time_ms": infer_ms,
+                            "denoise_time_ms": infer_ms,
+                            "vae_time_ms": 0.0,
+                            "total_time_ms": preprocess_ms + infer_ms,
+                        },
                         latents=None,
                     )
                 return None
 
+            postprocess_ms = 0.0
             postprocess_start_time = time.time()
             images = self.post_process_func(output.output) if self.post_process_func is not None else output.output
             postprocess_time = time.time() - postprocess_start_time
+            postprocess_ms = postprocess_time * 1000.0
             logger.info(f"Post-processing completed in {postprocess_time:.4f} seconds")
 
             # Convert to OmniRequestOutput format
@@ -122,7 +134,13 @@ class DiffusionEngine:
                 if isinstance(prompt, list):
                     prompt = prompt[0] if prompt else None
 
-                metrics = {}
+                metrics = {
+                    "preprocess_time_ms": preprocess_ms,
+                    "dit_time_ms": infer_ms,
+                    "denoise_time_ms": infer_ms,
+                    "vae_time_ms": postprocess_ms,
+                    "total_time_ms": preprocess_ms + infer_ms + postprocess_ms,
+                }
                 if output.trajectory_timesteps is not None:
                     metrics["trajectory_timesteps"] = output.trajectory_timesteps
 
@@ -150,7 +168,13 @@ class DiffusionEngine:
                     request_images = images[image_idx : image_idx + num_outputs] if image_idx < len(images) else []
                     image_idx += num_outputs
 
-                    metrics = {}
+                    metrics = {
+                        "preprocess_time_ms": preprocess_ms,
+                        "dit_time_ms": infer_ms,
+                        "denoise_time_ms": infer_ms,
+                        "vae_time_ms": postprocess_ms,
+                        "total_time_ms": preprocess_ms + infer_ms + postprocess_ms,
+                    }
                     if output.trajectory_timesteps is not None:
                         metrics["trajectory_timesteps"] = output.trajectory_timesteps
 
@@ -361,8 +385,3 @@ class DiffusionEngine:
 
     def close(self) -> None:
         self._finalizer()
-
-    def abort(self, request_id: str | Iterable[str]) -> None:
-        # TODO implement it
-        logger.warning("DiffusionEngine abort is not implemented yet")
-        pass

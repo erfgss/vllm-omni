@@ -191,6 +191,7 @@ def aggregate_rx_and_maybe_total(
     rx_bytes: float,
     rx_ms: float,
     in_flight_ms: float,
+    extra_timings: dict[str, float | None] | None = None,
 ) -> tuple[int, float, float] | None:
     try:
         # Update RX aggregates for (stage_id-1 -> stage_id)
@@ -207,6 +208,9 @@ def aggregate_rx_and_maybe_total(
                     "rx_count": 0.0,
                     "sum_total_ms": 0.0,
                     "total_count": 0.0,
+                    "sum_vae_time_ms": 0.0,
+                    "sum_dit_time_ms": 0.0,
+                    "sum_denoise_time_ms": 0.0,
                 }
                 transfer_agg[key] = agg
             agg["sum_rx_bytes"] += float(rx_bytes)
@@ -223,6 +227,13 @@ def aggregate_rx_and_maybe_total(
             total_ms = tx_ms + float(in_flight_ms) + float(rx_ms)
             agg["sum_total_ms"] += total_ms
             agg["total_count"] += 1.0
+            # Accumulate diffusion timings if provided
+            if extra_timings:
+                for k in ("vae_time_ms", "dit_time_ms", "denoise_time_ms"):
+                    v = extra_timings.get(k)
+                    if v is None:
+                        continue
+                    agg[f"sum_{k}"] = agg.get(f"sum_{k}", 0.0) + float(v)
             # accumulate per-request transfer totals
             try:
                 pr = per_request.setdefault(rid_key, {"stages": {}, "transfers_ms": 0.0, "transfers_bytes": 0})
@@ -248,6 +259,7 @@ def record_sender_transfer_agg(
     try:
         key = (from_stage, to_stage)
         agg = transfer_agg.get(key)
+
         if agg is None:
             agg = {
                 "sum_bytes": 0.0,
@@ -258,17 +270,24 @@ def record_sender_transfer_agg(
                 "rx_count": 0.0,
                 "sum_total_ms": 0.0,
                 "total_count": 0.0,
+                "sum_vae_time_ms": 0.0,
+                "sum_dit_time_ms": 0.0,
+                "sum_denoise_time_ms": 0.0,
             }
             transfer_agg[key] = agg
+
+        # sender-side aggregation
         agg["sum_bytes"] += float(size_bytes)
         agg["sum_ms"] += float(tx_ms)
         agg["count"] += 1.0
+
         # Store sender-side timing for per-request combination
         rid_key = str(req_id)
         transfer_edge_req[(from_stage, to_stage, rid_key)] = {
             "tx_ms": float(tx_ms),
             "size_bytes": float(size_bytes),
         }
+
     except Exception:
         pass
 
@@ -328,6 +347,11 @@ def build_transfer_summary(
         sum_total_ms = float(agg.get("sum_total_ms", 0.0))
         samples_total = int(agg.get("total_count", 0.0))
         total_mbps = (sum_bytes * 8.0) / (max(sum_total_ms, 1e-6) * 1000.0) if sum_bytes > 0 else 0.0
+        sum_vae_ms = float(agg.get("sum_vae_time_ms", 0.0))
+        sum_dit_ms = float(agg.get("sum_dit_time_ms", 0.0))
+        sum_denoise_ms = float(agg.get("sum_denoise_time_ms", 0.0))
+        def _avg(total: float) -> float:
+            return total / max(samples_total, 1) if total > 0 else 0.0
         summary.append(
             {
                 "from_stage": src,
@@ -343,6 +367,12 @@ def build_transfer_summary(
                 "total_samples": samples_total,
                 "total_transfer_time_ms": sum_total_ms,
                 "total_mbps": total_mbps,
+                "diffusion_vae_time_ms": sum_vae_ms,
+                "diffusion_vae_time_avg_ms": _avg(sum_vae_ms),
+                "diffusion_dit_time_ms": sum_dit_ms,
+                "diffusion_dit_time_avg_ms": _avg(sum_dit_ms),
+                "diffusion_denoise_time_ms": sum_denoise_ms,
+                "diffusion_denoise_time_avg_ms": _avg(sum_denoise_ms),
             }
         )
     return summary
@@ -364,8 +394,11 @@ class StageRequestMetrics:
     rx_decode_time_ms: float
     rx_transfer_bytes: int
     rx_in_flight_time_ms: float
+    vae_time_ms: float | None = None
+    dit_time_ms: float | None = None
+    denoise_time_ms: float | None = None
 
-    stage_stats: StageStats
+    stage_stats: StageStats | None = None
 
 
 class OrchestratorMetrics:
@@ -442,6 +475,11 @@ class OrchestratorMetrics:
         rx_b = float(metrics.get("rx_transfer_bytes", 0.0))
         rx_ms = float(metrics.get("rx_decode_time_ms", 0.0))
         in_flight_ms = float(metrics.get("rx_in_flight_time_ms", 0.0))
+        extra_timings = {
+            "vae_time_ms": metrics.get("vae_time_ms"),
+            "dit_time_ms": metrics.get("dit_time_ms"),
+            "denoise_time_ms": metrics.get("denoise_time_ms"),
+        }
         combined = aggregate_rx_and_maybe_total(
             self.transfer_edge_req,
             self.transfer_agg,
@@ -451,6 +489,7 @@ class OrchestratorMetrics:
             rx_b,
             rx_ms,
             in_flight_ms,
+            extra_timings,
         )
         if self.enable_stats and stage_id > 0:
             log_transfer_rx(

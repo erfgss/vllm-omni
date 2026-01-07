@@ -153,21 +153,53 @@ class OmniRequestOutput:
         return result
 
     def __repr__(self) -> str:
-        """Custom repr to properly show image count instead of image objects."""
-        # For images, show count instead of full list
+        """Pretty, multi-line repr for clean logging."""
         images_repr = f"[{len(self.images)} PIL Images]" if self.images else "[]"
 
-        # Build repr string
+        # Indent nested request_output if it's a list of OmniRequestOutput
+        def _repr_nested(obj) -> str:
+            if isinstance(obj, list):
+                return "[" + ", ".join(_repr_nested(x) for x in obj) + "]"
+            if isinstance(obj, OmniRequestOutput):
+                return obj._repr_multiline(indent="  ")
+            return repr(obj)
+
         parts = [
             f"request_id={self.request_id!r}",
             f"finished={self.finished}",
             f"stage_id={self.stage_id}",
             f"final_output_type={self.final_output_type!r}",
-            f"request_output={self.request_output}",
+            f"request_output={_repr_nested(self.request_output)}",
             f"images={images_repr}",
             f"prompt={self.prompt!r}",
             f"latents={self.latents}",
             f"metrics={self.metrics}",
         ]
-
         return f"OmniRequestOutput({', '.join(parts)})"
+
+    def _repr_multiline(self, indent: str = "") -> str:
+        """Helper to produce multi-line, indented repr for nested logging."""
+        images_repr = f"[{len(self.images)} PIL Images]" if self.images else "[]"
+
+        def _repr_nested(obj, ind: str) -> str:
+            if isinstance(obj, list):
+                inner = ",\n".join(_repr_nested(x, ind + "  ") for x in obj)
+                return "[\n" + inner + "\n" + ind + "]"
+            if isinstance(obj, OmniRequestOutput):
+                return obj._repr_multiline(indent=ind + "  ")
+            return repr(obj)
+
+        lines = [
+            f"{indent}OmniRequestOutput(",
+            f"{indent}  request_id={self.request_id!r},",
+            f"{indent}  finished={self.finished},",
+            f"{indent}  stage_id={self.stage_id},",
+            f"{indent}  final_output_type={self.final_output_type!r},",
+            f"{indent}  request_output={_repr_nested(self.request_output, indent + '  ')},",
+            f"{indent}  images={images_repr},",
+            f"{indent}  prompt={self.prompt!r},",
+            f"{indent}  latents={self.latents},",
+            f"{indent}  metrics={self.metrics},",
+            f"{indent})",
+        ]
+        return "\n".join(lines)

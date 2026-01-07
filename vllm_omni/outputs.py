@@ -153,10 +153,11 @@ class OmniRequestOutput:
         return result
 
     def __repr__(self) -> str:
-        """Pretty, multi-line repr for clean logging."""
+        """Custom repr to properly show image count instead of image objects."""
+        # For images, show count instead of full list
         images_repr = f"[{len(self.images)} PIL Images]" if self.images else "[]"
+        # Build repr string
 
-        # Indent nested request_output if it's a list of OmniRequestOutput
         def _repr_nested(obj) -> str:
             if isinstance(obj, list):
                 return "[" + ", ".join(_repr_nested(x) for x in obj) + "]"
